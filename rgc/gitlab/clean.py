@@ -26,36 +26,41 @@ class GitlabClean( object ):
         print( '-> loading all projects..' )
         for project in gitlab.Gitlab( self.gitlab_url, self.token ).projects.list( all=True ):
             if project.container_registry_enabled:
-                print( '-> processing ' + project.path_with_namespace.lower() )
-                query_tags = registry.query( self.registry_url + '/v2/' + project.path_with_namespace.lower() + '/tags/list', 'get' )
-                try:
-                    query_tags['tags']
-                except KeyError:
-                    tags = []
-                else:
-                    tags = query_tags['tags']
 
-                if len( tags ) > 0:
-                    print( '--> ' + str( len( tags ) ) + ' tag(s) found' )
-                    for tag in tags:
-                        if not re.match( self.exclude, tag ):
-                            # BUG: Sometimes the 'history' field is not available, usally works on next try
-                            tag_info = registry.query( self.registry_url + '/v2/' + project.path_with_namespace.lower() + '/manifests/' + tag, 'get' )
-                            try:
-                                tag_info['history']
-                            except KeyError:
-                                print( colored( '--> couldn\'t get date info for ' + tag + ' (skipped)', 'yellow' ) )
-                            else:
-                                created_at = datetime.strptime( json.loads( tag_info['history'][0]['v1Compatibility'] )['created'][:-4], '%Y-%m-%dT%H:%M:%S.%f' )
-                                age = now - created_at
-                                if age.total_seconds() > ( int( self.retention ) * 60 * 60 * 24 ):
-                                    print( colored( '--> removing ' + tag + ' (expired)', 'red' ) )
-                                    digest = registry.query( self.registry_url + '/v2/' + project.path_with_namespace.lower() + '/manifests/' + tag, 'head' )['Docker-Content-Digest']
-                                    registry.query( self.registry_url + '/v2/' + project.path_with_namespace.lower() + '/manifests/' + digest, 'delete' )
+                print('-> processing ' + project.path_with_namespace.lower())
+                for repo in project.repositories.list():
+
+                    print( '-> processing repo ' + repo.path)
+                    query_tags = registry.query( self.registry_url + '/v2/' + repo.path.lower() + '/tags/list', 'get' )
+                    try:
+                        query_tags['tags']
+                    except KeyError:
+                        tags = []
+                    else:
+                        tags = query_tags['tags']
+
+                    if len( tags ) > 0:
+                        print( '--> ' + str( len( tags ) ) + ' tag(s) found' )
+                        for tag in tags:
+                            if not re.match( self.exclude, tag ):
+                                # BUG: Sometimes the 'history' field is not available, usally works on next try
+                                tag_info = registry.query( self.registry_url + '/v2/' + repo.path.lower() + '/manifests/' + tag, 'get' )
+                                try:
+                                    tag_info['history']
+                                except KeyError:
+                                    print(tag_info)
+                                    print( colored( '--> couldn\'t get date info for ' + tag + ' (skipped)', 'yellow' ) )
                                 else:
-                                    print( colored( '--> keeping ' + tag + ' (not expired)', 'green' ) )
-                        else:
-                            print( colored( '--> keeping ' + tag + ' (excluded)', 'green' ) )
+                                    created_at = datetime.strptime( json.loads( tag_info['history'][0]['v1Compatibility'] )['created'][:-4], '%Y-%m-%dT%H:%M:%S.%f' )
+                                    age = now - created_at
+                                    if age.total_seconds() > ( int( self.retention ) * 60 * 60 * 24 ):
+                                        print( colored( '--> removing ' + tag + ' (expired)', 'red' ) )
+                                        digest = registry.query( self.registry_url + '/v2/' + repo.path.lower() + '/manifests/' + tag, 'head' )['Docker-Content-Digest']
+                                        registry.query( self.registry_url + '/v2/' + repo.path.lower() + '/manifests/' + digest, 'delete' )
+                                    else:
+                                        print( colored( '--> keeping ' + tag + ' (not expired)', 'green' ) )
+                            else:
+                                print( colored( '--> keeping ' + tag + ' (excluded)', 'green' ) )
                 else:
                     print( '--> no tags' )
             else:

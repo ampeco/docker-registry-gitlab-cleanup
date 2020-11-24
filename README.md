@@ -6,7 +6,7 @@ The goal of this tool is to be able to cleanup old image tags stored in a [GitLa
 
 # Prerequisites
 
-- GitLab version 10.2 or above
+- GitLab version 11.8 or above
 - Docker Registry version 2.3 or above
 - Have an administrator account onto the GitLab server
 - Be able to reach both GitLab and Docker registry endpoint APIs from the same location.
